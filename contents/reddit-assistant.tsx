@@ -1,107 +1,109 @@
-import React, { useState,useReducer  } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { PlasmoCSConfig } from "plasmo"
 import cssText from "data-text:~style.css"
 import { RedditAssistantPanel } from "~components/RedditAssistantPanel"
-
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*.reddit.com/*"]
 }
 
-// Define shadow host ID
 export const getShadowHostId = () => "reddit-assistant-host"
 
-// Ensure style isolation
 export const getShadowRoot = () => {
   return document.querySelector("#reddit-assistant-host")?.shadowRoot
 }
-
-// Inject base styles
 
 export const getStyle = () => {
   const style = document.createElement("style")
   
   style.textContent = `
-    /* 重置根容器样式，但保留定位和尺寸属性 */
     .reddit-assistant-container {
       all: initial !important;
       display: block !important;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+      position: fixed !important;
+      z-index: 999999 !important;
     }
     
-    /* 恢复内部元素样式，但保持隔离 */
     .reddit-assistant-container > * {
       all: revert !important;
     }
 
-    /* 修复 SVG 图标样式 */
-    .reddit-assistant-container svg.lucide {
-      display: inline-block !important;
-      vertical-align: middle !important;
-      stroke: currentColor !important;
-      stroke-width: 2 !important;
-      stroke-linecap: round !important;
-      stroke-linejoin: round !important;
-      fill: none !important;
-      width: 1em !important;
-      height: 1em !important;
-    }
-
-    /* 修复按钮中的图标对齐 */
-    .reddit-assistant-container button svg.lucide {
-      position: relative !important;
-      pointer-events: none !important;
-      top: -0.5px !important;
-    }
-
-    /* 特定组件样式修复 */
-    .reddit-assistant-container [class*="Card"] {
-      background: white !important;
-      border-radius: 0.5rem !important;
-    }
-
-    /* 确保 z-index 生效 */
-    .reddit-assistant-container .fixed {
+    .reddit-assistant-panel {
       position: fixed !important;
-      z-index: 999999 !important;
-    }
-
-    /* 确保滚动区域正常工作 */
-    .reddit-assistant-container .ScrollArea {
-      max-height: inherit !important;
+      top: 80px !important;
+      right: 20px !important;
+      width: 380px !important;
+      max-height: calc(100vh - 120px) !important;
+      background: white !important;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+      border-radius: 8px !important;
       overflow: hidden !important;
     }
 
-    /* 确保按钮样式正确 */
-    .reddit-assistant-container button {
-      all: revert !important;
-      cursor: pointer !important;
-      display: inline-flex !important;
+    .reddit-assistant-button {
+      position: fixed !important;
+      bottom: 20px !important;
+      right: 20px !important;
+      width: 40px !important;
+      height: 40px !important;
+      border-radius: 20px !important;
+      background: white !important;
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+      display: flex !important;
       align-items: center !important;
       justify-content: center !important;
+      cursor: pointer !important;
+      transition: transform 0.2s ease-in-out !important;
     }
 
-    /* 确保输入框样式正确 */
-    .reddit-assistant-container input {
-      all: revert !important;
-      box-sizing: border-box !important;
-      width: 100% !important;
+    .reddit-assistant-button:hover {
+      transform: scale(1.05) !important;
     }
 
-    /* 最后注入 Tailwind 样式 */
+    .reddit-assistant-container svg {
+      stroke-width: 1.5 !important;
+      stroke-linecap: round !important;
+      stroke-linejoin: round !important;
+      fill: none !important;
+      vertical-align: middle !important;
+    }
+
     ${cssText}
   `
   return style
 }
 
 const RedditAssistantContainer = () => {
+  const [mounted, setMounted] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMounted(true)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (!mounted) {
+    return null
+  }
 
   return (
     <div className="reddit-assistant-container">
-      <div className="fixed top-5 right-5 w-[380px] bg-white rounded-lg shadow-lg z-[999999]">
-        <RedditAssistantPanel />
-      </div>
+      {isMinimized ? (
+        <div className="reddit-assistant-button" onClick={() => setIsMinimized(false)}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+        </div>
+      ) : (
+        <div className="reddit-assistant-panel">
+          <RedditAssistantPanel onMinimize={() => setIsMinimized(true)} />
+        </div>
+      )}
     </div>
   )
 }
 
-export default RedditAssistantContainer 
+export default RedditAssistantContainer
