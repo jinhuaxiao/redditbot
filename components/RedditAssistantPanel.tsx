@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageSquare, ChevronDown, Pin, Send } from 'lucide-react'
+import { MessageSquare, ChevronDown, Pin, Send, RefreshCw, Spinner } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -71,6 +71,8 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
   const [visibleComments, setVisibleComments] = useState<CommentType[]>([])
   const [page, setPage] = useState(1)
   const commentsPerPage = 10
+  const [isLoading, setIsLoading] = useState(false);
+  const [comments, setComments] = useState<CommentType[]>([]);
   
   const { ref, inView } = useInView({
     threshold: 0.5
@@ -118,6 +120,22 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
   }
 
   if (!currentPost) return null
+
+  // 添加提取评论的函数
+  const extractComments = async () => {
+    setIsLoading(true);
+    try {
+      const content = extractRedditContent();
+      if (content) {
+        setComments(content.comments);
+        setCurrentPost(content);
+      }
+    } catch (error) {
+      console.error('Failed to extract comments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Card className={`fixed ${isPinned ? 'right-6 top-16' : 'right-6 bottom-6'} w-[400px] shadow-lg max-h-[85vh] flex flex-col bg-white`}>

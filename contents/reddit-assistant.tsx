@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { PlasmoCSConfig } from "plasmo"
 import cssText from "data-text:~style.css"
 import RedditAssistantPanel from "~components/RedditAssistantPanel"
+import { ErrorBoundary, ErrorFallback } from '~/components/ErrorBoundary'
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*.reddit.com/*"]
@@ -38,6 +39,8 @@ export const getStyle = () => {
       box-shadow: var(--shadow-elevation) !important;
       border-radius: var(--radius-md) !important;
       overflow: hidden !important;
+      display: flex !important;
+      flex-direction: column !important;
     }
 
     .reddit-assistant-button {
@@ -68,6 +71,39 @@ export const getStyle = () => {
       color: var(--color-text-primary) !important;
     }
 
+    /* 自定义滚动条样式 */
+    .custom-scrollbar {
+      scrollbar-width: thin !important;
+      overflow-y: auto !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px !important;
+      height: 8px !important;
+      background-color: transparent !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1 !important;
+      border-radius: 4px !important;
+      margin: 2px !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #c1c1c1 !important;
+      border-radius: 4px !important;
+      border: 2px solid #f1f1f1 !important;
+      min-height: 40px !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #a1a1a1 !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-corner {
+      background: transparent !important;
+    }
+
     ${cssText}
   `
   return style
@@ -76,16 +112,46 @@ export const getStyle = () => {
 const RedditAssistantContainer = () => {
   const [mounted, setMounted] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setMounted(true)
+      try {
+        setMounted(true)
+      } catch (error) {
+        console.error('Failed to mount Reddit Assistant:', error)
+        setLoadError(true)
+      }
     }, 1000)
     return () => clearTimeout(timer)
   }, [])
 
+  if (loadError) {
+    return (
+      <div className="reddit-assistant-container">
+        <div className="reddit-assistant-panel p-4">
+          <p className="text-red-500">Failed to load Reddit Assistant. Please refresh the page.</p>
+        </div>
+      </div>
+    )
+  }
+
   if (!mounted) {
-    return null
+    return (
+      <div className="reddit-assistant-container">
+        <div className="reddit-assistant-panel p-4">
+          <div className="animate-pulse flex space-x-4">
+            <div className="flex-1 space-y-4 py-1">
+              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +170,9 @@ const RedditAssistantContainer = () => {
         </div>
       ) : (
         <div className="reddit-assistant-panel">
-          <RedditAssistantPanel onMinimize={() => setIsMinimized(true)} />
+          <ErrorBoundary fallback={<ErrorFallback />}>
+            <RedditAssistantPanel onMinimize={() => setIsMinimized(true)} />
+          </ErrorBoundary>
         </div>
       )}
     </div>
