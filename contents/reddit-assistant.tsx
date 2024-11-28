@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { PlasmoCSConfig } from "plasmo"
 import cssText from "data-text:~style.css"
-import { RedditAssistantPanel } from "~components/RedditAssistantPanel"
+import RedditAssistantPanel from "~components/RedditAssistantPanel"
 
 export const config: PlasmoCSConfig = {
   matches: ["https://*.reddit.com/*"]
@@ -23,6 +23,8 @@ export const getStyle = () => {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
       position: fixed !important;
       z-index: 999999 !important;
+      top: 80px !important;
+      right: 30px !important;
     }
     
     .reddit-assistant-container > * {
@@ -30,35 +32,32 @@ export const getStyle = () => {
     }
 
     .reddit-assistant-panel {
-      position: fixed !important;
-      top: 80px !important;
-      right: 20px !important;
-      width: 380px !important;
-      max-height: calc(100vh - 120px) !important;
-      background: white !important;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
-      border-radius: 8px !important;
+      width: 480px !important;
+      max-height: calc(100vh - 100px) !important;
+      background: var(--color-neutral-background-weak) !important;
+      box-shadow: var(--shadow-elevation) !important;
+      border-radius: var(--radius-md) !important;
       overflow: hidden !important;
+      border: 1px solid var(--color-neutral-border-weak) !important;
     }
 
     .reddit-assistant-button {
-      position: fixed !important;
-      bottom: 20px !important;
-      right: 20px !important;
-      width: 40px !important;
-      height: 40px !important;
-      border-radius: 20px !important;
-      background: white !important;
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+      width: 48px !important;
+      height: 48px !important;
+      border-radius: 24px !important;
+      background: var(--color-neutral-background-weak) !important;
+      box-shadow: var(--shadow-elevation) !important;
       display: flex !important;
       align-items: center !important;
       justify-content: center !important;
       cursor: pointer !important;
       transition: transform 0.2s ease-in-out !important;
+      border: 1px solid var(--color-neutral-border-weak) !important;
     }
 
     .reddit-assistant-button:hover {
       transform: scale(1.05) !important;
+      background: var(--color-neutral-background-strong) !important;
     }
 
     .reddit-assistant-container svg {
@@ -67,6 +66,7 @@ export const getStyle = () => {
       stroke-linejoin: round !important;
       fill: none !important;
       vertical-align: middle !important;
+      color: var(--color-text-primary) !important;
     }
 
     ${cssText}

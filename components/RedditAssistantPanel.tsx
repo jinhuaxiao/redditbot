@@ -1,76 +1,251 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { MessageSquare, ChevronDown, Pin, X, CornerUpRight } from 'lucide-react'
-import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card'
+import React, { useState, useEffect, useCallback } from 'react'
+import { MessageSquare, ChevronDown, Pin, Send } from 'lucide-react'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 interface Comment {
-  id: number
+  id: string
   author: string
+  avatar: string
   content: string
-  translation: string
-  replies: Comment[]
+  timestamp: string
+  translation?: string
 }
 
 interface Post {
   title: string
   content: string
-  translation: string
+  translation?: string
   comments: Comment[]
 }
 
 interface RedditAssistantPanelProps {
-  onMinimize: () => void
+  onMinimize?: () => void
 }
 
+// 提取内容的辅助函数
+const extractRedditContent = () => {
+  try {
+    // 获取帖子信息
+    const titleElement = document.querySelector('[id^="post-title-t3_"]')
+    const contentElement = document.querySelector('[id$="-post-rtjson-content"]')
+    
+    // 提取评论
+    const commentElements = document.querySelectorAll('shreddit-comment')
+    const comments: Comment[] = Array.from(commentElements).map((comment) => {
+      const authorElement = comment.querySelector('.text-neutral-content-strong')
+      const contentElement = comment.querySelector('.md.text-14')
+      const avatarElement = comment.querySelector('img')
+      const timestampElement = comment.querySelector('time')
+
+      return {
+        id: comment.getAttribute('thingid') || Math.random().toString(),
+        author: authorElement?.textContent?.trim() || 'Anonymous',
+        content: contentElement?.textContent?.trim() || '',
+        avatar: avatarElement?.src || '',
+        timestamp: timestampElement?.getAttribute('datetime') || new Date().toISOString(),
+        translation: '' // 预留翻译位置
+      }
+    })
+
+    return {
+      title: titleElement?.textContent?.trim() || 'Untitled',
+      content: contentElement?.textContent?.trim() || '',
+      translation: '', // 预留翻译位置
+      comments
+    }
+  } catch (error) {
+    console.error('Error extracting Reddit content:', error)
+    return null
+  }
+}
+
+// 评论输入组件
+const CommentInput = ({ 
+  onSubmit, 
+  onCancel, 
+  placeholder = "输入中文回复...",
+  replyTo = null 
+}: {
+  onSubmit: (content: string, translation: string) => void
+  onCancel?: () => void
+  placeholder?: string
+  replyTo?: Comment | null
+}) => {
+  const [content, setContent] = useState('')
+  const [translation, setTranslation] = useState('')
+  const [isTranslating, setIsTranslating] = useState(false)
+
+  // 处理翻译
+  const handleTranslate = useCallback(async (text: string) => {
+    if (!text) return
+    setIsTranslating(true)
+    try {
+      // TODO: 实现翻译 API 调用
+      const translatedText = "Translation preview..." // 替换为实际翻译结果
+      setTranslation(translatedText)
+    } catch (error) {
+      console.error('Translation error:', error)
+    } finally {
+      setIsTranslating(false)
+    }
+  }, [])
+
+  // 防抖处理翻译请求
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (content) {
+        handleTranslate(content)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [content, handleTranslate])
+
+  return (
+    <div className="border-t bg-neutral-50">
+      <div className="p-4 space-y-3">
+        {replyTo && (
+          <div className="flex items-center justify-between text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded">
+            <span>回复 {replyTo.author}</span>
+            {onCancel && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={onCancel}
+                className="h-6 w-6 p-0"
+              >
+                ✕
+              </Button>
+            )}
+          </div>
+        )}
+        <Input
+          className="bg-white"
+          placeholder={placeholder}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        {content && (
+          <div className="bg-white rounded p-3 text-sm border">
+            <p className="text-gray-500 text-xs mb-1">翻译预览:</p>
+            <p className="text-gray-700">
+              {isTranslating ? "翻译中..." : translation || "English translation will appear here..."}
+            </p>
+          </div>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button
+            className="bg-white hover:bg-gray-100"
+            size="sm"
+            onClick={() => {
+              if (content) {
+                onSubmit(content, translation)
+                setContent('')
+                setTranslation('')
+              }
+            }}
+            disabled={!content || isTranslating}
+          >
+            <Send className="w-4 h-4 mr-2" />
+            发送
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// 评论组件
+const Comment = ({ 
+  comment, 
+  onReply, 
+  isReplying,
+  onSubmitReply,
+  onCancelReply
+}: {
+  comment: Comment
+  onReply: (comment: Comment) => void
+  isReplying: boolean
+  onSubmitReply: (content: string, translation: string) => void
+  onCancelReply: () => void
+}) => (
+  <div className="py-3 group">
+    <div className="flex gap-3">
+      <Avatar className="w-8 h-8">
+        <AvatarImage src={comment.avatar} alt={comment.author} />
+        <AvatarFallback>{comment.author[0]?.toUpperCase()}</AvatarFallback>
+      </Avatar>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="font-medium text-sm">{comment.author}</span>
+            <span className="text-xs text-gray-500 ml-2">
+              {new Date(comment.timestamp).toLocaleString()}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => onReply(comment)}
+          >
+            回复
+          </Button>
+        </div>
+        <p className="mt-2 text-sm">{comment.content}</p>
+        {comment.translation && (
+          <div className="mt-2 border-l-2 border-green-500 pl-2 py-1 text-sm text-gray-600 bg-green-50">
+            {comment.translation}
+          </div>
+        )}
+      </div>
+    </div>
+    {isReplying && (
+      <div className="mt-3 ml-11">
+        <CommentInput
+          placeholder={`回复 ${comment.author}...`}
+          onSubmit={onSubmitReply}
+          onCancel={onCancelReply}
+          replyTo={comment}
+        />
+      </div>
+    )}
+  </div>
+)
+
+// 主面板组件
 export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize }) => {
   const [isPinned, setIsPinned] = useState(true)
   const [isExpanded, setIsExpanded] = useState(true)
-  const [replyTo, setReplyTo] = useState<Comment | null>(null)
-  const [replyContent, setReplyContent] = useState('')
-  const [translatedReply, setTranslatedReply] = useState('')
+  const [replyingTo, setReplyingTo] = useState<Comment | null>(null)
+  const [currentPost, setCurrentPost] = useState<Post | null>(null)
 
-  // 延迟显示组件
+  // 初始化内容
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsExpanded(true)
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
+    const content = extractRedditContent()
+    if (content) {
+      setCurrentPost(content)
+    }
 
-  // Mock post data
-  const currentPost: Post = {
-    title: "Moldy pot",
-    content: "Hi so I don't think there's anything wrong with my plant but the outside of the pot looks like it's growing mold, what can I do to get rid of it without hurting the plant?",
-    translation: "你好，我觉得我的植物没什么问题，但是花盆外面看起来在长霉，我该如何在不伤害植物的情况下去除霉菌？",
-    comments: [
-      {
-        id: 1,
-        author: "AQMessiah",
-        content: "Is there a hole on the bottom for excess water to flow?",
-        translation: "底部有排水孔让多余的水流出吗？",
-        replies: []
+    // 监听 Escape 键
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsExpanded(false)
+        onMinimize?.()
       }
-    ]
-  }
+    }
 
-  const handleTranslateReply = async (text: string) => {
-    // TODO: Implement translation API call
-    setTranslatedReply("This is a mocked English translation...")
-  }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [onMinimize])
 
-  const handleSubmitReply = () => {
-    console.log("Submitting reply:", translatedReply)
-    setReplyContent('')
-    setTranslatedReply('')
-    setReplyTo(null)
-  }
-
+  // 最小化状态
   if (!isExpanded) {
     return (
-      <div className="fixed right-4 bottom-4 shadow-lg">
+      <div className="fixed right-6 bottom-6 shadow-lg">
         <Button 
           className="rounded-full p-3"
           onClick={() => setIsExpanded(true)}
@@ -81,12 +256,14 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
     )
   }
 
+  if (!currentPost) return null
+
   return (
-    <Card className={`fixed ${isPinned ? 'right-4' : 'right-4 bottom-4'} w-96 shadow-lg max-h-[80vh] flex flex-col`}>
+    <Card className={`fixed ${isPinned ? 'right-6 top-16' : 'right-6 bottom-6'} w-[400px] shadow-lg max-h-[85vh] flex flex-col bg-white`}>
       <CardHeader className="border-b flex flex-row items-center justify-between p-3">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-lg">Reddit Assistant</CardTitle>
-          <Badge variant="secondary">中 / EN</Badge>
+          <h3 className="font-medium text-lg">Reddit Assistant</h3>
+          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">中 / EN</span>
         </div>
         <div className="flex items-center gap-1">
           <Button 
@@ -106,96 +283,51 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
         </div>
       </CardHeader>
 
-      <CardContent className="p-0 flex-1 flex flex-col">
-        <ScrollArea className="flex-1 border-b">
+      <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
+        <ScrollArea className="flex-1">
           <div className="p-4">
-            <div className="mb-4">
+            {/* 帖子内容 */}
+            <div className="mb-6">
               <h3 className="font-medium text-lg mb-2">{currentPost.title}</h3>
-              <p className="text-gray-600 mb-2">{currentPost.content}</p>
-              <p className="text-gray-500 text-sm border-l-2 border-green-500 pl-2">
-                {currentPost.translation}
-              </p>
+              <p className="text-gray-600">{currentPost.content}</p>
+              {currentPost.translation && (
+                <div className="mt-2 border-l-2 border-green-500 pl-2 py-1 text-sm text-gray-600 bg-green-50">
+                  {currentPost.translation}
+                </div>
+              )}
             </div>
 
+            {/* 评论列表 */}
             <div className="space-y-4">
               {currentPost.comments.map(comment => (
-                <div key={comment.id} className="ml-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">{comment.author}</span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 rounded-full transition-colors hover:bg-gray-200"
-                      onClick={() => setReplyTo(comment)}
-                    >
-                      <CornerUpRight className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-gray-700 text-sm mb-2">{comment.content}</p>
-                  <p className="text-gray-600 text-xs border-l-2 border-blue-500 pl-3 py-1 bg-blue-50/50">
-                    {comment.translation}
-                  </p>
-                  {comment.replies?.map(reply => (
-                    <div key={reply.id} className="ml-6 border-l-2 pl-4 mb-2">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">{reply.author}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full transition-colors hover:bg-gray-200"
-                          onClick={() => setReplyTo(reply)}
-                        >
-                          <CornerUpRight className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <p className="text-gray-700 text-sm mb-2">{reply.content}</p>
-                      <p className="text-gray-600 text-xs border-l-2 border-blue-500 pl-3 py-1 bg-blue-50/50">
-                        {reply.translation}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                <Comment
+                  key={comment.id}
+                  comment={comment}
+                  onReply={setReplyingTo}
+                  isReplying={replyingTo?.id === comment.id}
+                  onSubmitReply={(content, translation) => {
+                    console.log('Submit reply:', { content, translation, to: comment })
+                    setReplyingTo(null)
+                  }}
+                  onCancelReply={() => setReplyingTo(null)}
+                />
               ))}
             </div>
           </div>
         </ScrollArea>
 
-        <div className="p-4">
-          {replyTo && (
-            <div className="flex items-center justify-between mb-2 text-sm text-gray-500">
-              <span>Replying to: {replyTo.author}</span>
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => setReplyTo(null)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-          <div className="space-y-2">
-            <Input
-              placeholder="输入中文回复..."
-              value={replyContent}
-              onChange={(e) => {
-                setReplyContent(e.target.value)
-                handleTranslateReply(e.target.value)
-              }}
-            />
-            <div className="bg-gray-50 p-2 rounded border text-sm">
-              <p className="text-gray-500 mb-1">翻译预览:</p>
-              <p>{translatedReply || "English translation will appear here..."}</p>
-            </div>
-            <Button 
-              className="w-full"
-              onClick={handleSubmitReply}
-              disabled={!translatedReply}
-            >
-              发送回复
-            </Button>
-          </div>
-        </div>
+        {/* 主评论输入框 */}
+        {!replyingTo && (
+          <CommentInput
+            placeholder="发表评论..."
+            onSubmit={(content, translation) => {
+              console.log('New comment:', { content, translation })
+            }}
+          />
+        )}
       </CardContent>
     </Card>
   )
 }
+
+export default RedditAssistantPanel
