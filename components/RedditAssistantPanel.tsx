@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageSquare, ChevronDown, Pin, Send } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
@@ -38,14 +38,19 @@ const extractRedditContent = () => {
     const comments: Comment[] = Array.from(commentElements).map((comment) => {
       const authorElement = comment.querySelector('.text-neutral-content-strong')
       const contentElement = comment.querySelector('.md.text-14')
-      const avatarElement = comment.querySelector('img')
+      const avatarElement = comment.querySelector('image[href], img[src]')
       const timestampElement = comment.querySelector('time')
+
+      const avatarSrc = avatarElement ? 
+        'href' in avatarElement ? (avatarElement as SVGImageElement).href.baseVal : 
+        (avatarElement as HTMLImageElement).src
+      : ''
 
       return {
         id: comment.getAttribute('thingid') || Math.random().toString(),
         author: authorElement?.textContent?.trim() || 'Anonymous',
         content: contentElement?.textContent?.trim() || '',
-        avatar: avatarElement?.src || '',
+        avatar: avatarSrc,
         timestamp: timestampElement?.getAttribute('datetime') || new Date().toISOString(),
         translation: '' // 预留翻译位置
       }
@@ -69,67 +74,68 @@ const CommentInput = ({
   onCancel, 
   placeholder = "输入中文回复...",
   replyTo = null 
-}: {
-  onSubmit: (content: string, translation: string) => void
-  onCancel?: () => void
-  placeholder?: string
-  replyTo?: Comment | null
 }) => {
   const [content, setContent] = useState('')
   const [translation, setTranslation] = useState('')
   const [isTranslating, setIsTranslating] = useState(false)
+  const textareaRef = useRef(null)
 
-  // 处理翻译
   const handleTranslate = useCallback(async (text: string) => {
     if (!text) return
     setIsTranslating(true)
     try {
       // TODO: 实现翻译 API 调用
-      const translatedText = "Translation preview..." // 替换为实际翻译结果
-      setTranslation(translatedText)
-    } catch (error) {
-      console.error('Translation error:', error)
+      setTranslation("Translation preview...")
     } finally {
       setIsTranslating(false)
     }
   }, [])
 
-  // 防抖处理翻译请求
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (content) {
-        handleTranslate(content)
-      }
+      if (content) handleTranslate(content)
     }, 500)
     return () => clearTimeout(timer)
   }, [content, handleTranslate])
 
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px'
+    }
+  }, [content])
+
   return (
-    <div className="border-t bg-neutral-50">
+    <div className="bg-gray-50 border-t">
       <div className="p-4 space-y-3">
         {replyTo && (
-          <div className="flex items-center justify-between text-sm text-gray-500 bg-gray-100 px-3 py-2 rounded">
-            <span>回复 {replyTo.author}</span>
+          <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50/50 px-4 py-2.5 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-gray-400">回复</span>
+              <span className="font-medium text-gray-600">{replyTo.author}</span>
+            </div>
             {onCancel && (
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={onCancel}
-                className="h-6 w-6 p-0"
+                className="h-6 w-6 p-0 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600"
               >
+                <span className="sr-only">关闭回复</span>
                 ✕
               </Button>
             )}
           </div>
         )}
-        <Input
-          className="bg-white"
+        <Textarea
+          ref={textareaRef}
+          className="min-h-[100px] bg-white resize-none rounded-lg"
           placeholder={placeholder}
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
         {content && (
-          <div className="bg-white rounded p-3 text-sm border">
+          <div className="bg-white rounded-lg p-3 text-sm border">
             <p className="text-gray-500 text-xs mb-1">翻译预览:</p>
             <p className="text-gray-700">
               {isTranslating ? "翻译中..." : translation || "English translation will appear here..."}
@@ -137,8 +143,17 @@ const CommentInput = ({
           </div>
         )}
         <div className="flex justify-end gap-2">
+          {onCancel && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onCancel}
+              className="hover:bg-gray-100"
+            >
+              取消
+            </Button>
+          )}
           <Button
-            className="bg-white hover:bg-gray-100"
             size="sm"
             onClick={() => {
               if (content) {
@@ -148,6 +163,7 @@ const CommentInput = ({
               }
             }}
             disabled={!content || isTranslating}
+            className="bg-blue-500 hover:bg-blue-600"
           >
             <Send className="w-4 h-4 mr-2" />
             发送
@@ -162,59 +178,65 @@ const CommentInput = ({
 const Comment = ({ 
   comment, 
   onReply, 
-  isReplying,
+  isReplying, 
   onSubmitReply,
-  onCancelReply
-}: {
-  comment: Comment
-  onReply: (comment: Comment) => void
-  isReplying: boolean
-  onSubmitReply: (content: string, translation: string) => void
-  onCancelReply: () => void
-}) => (
-  <div className="py-3 group">
-    <div className="flex gap-3">
-      <Avatar className="w-8 h-8">
-        <AvatarImage src={comment.avatar} alt={comment.author} />
-        <AvatarFallback>{comment.author[0]?.toUpperCase()}</AvatarFallback>
-      </Avatar>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="font-medium text-sm">{comment.author}</span>
-            <span className="text-xs text-gray-500 ml-2">
-              {new Date(comment.timestamp).toLocaleString()}
-            </span>
+  onCancelReply,
+  depth = 0 
+}) => {
+  return (
+    <div className={`relative ${depth > 0 ? 'ml-6' : ''}`}>
+      <div className="flex items-start gap-3">
+        {/* 头像 */}
+        <Avatar className="w-6 h-6 shrink-0 mt-1">
+          <AvatarImage src={comment.avatar} alt={comment.author} />
+          <AvatarFallback>{comment.author[0]?.toUpperCase()}</AvatarFallback>
+        </Avatar>
+
+        <div className="flex-1 min-w-0">
+          {/* 作者信息和回复按钮 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-medium text-sm truncate">{comment.author}</span>
+              <span className="text-xs text-gray-500">
+                {new Date(comment.timestamp).toLocaleString()}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-gray-500 hover:text-gray-900"
+              onClick={() => onReply(comment)}
+            >
+              回复
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="opacity-0 group-hover:opacity-100 transition-opacity"
-            onClick={() => onReply(comment)}
-          >
-            回复
-          </Button>
+
+          {/* 评论内容和翻译 */}
+          <div className="mt-2">
+            <p className="text-sm text-gray-700">{comment.content}</p>
+            {comment.translation && (
+              <div className="mt-2 border-l-2 border-blue-300 pl-3 py-1 text-sm text-gray-600 bg-gray-50 rounded-r-md">
+                {comment.translation}
+              </div>
+            )}
+          </div>
+
+          {/* 回复框 */}
+          {isReplying && (
+            <div className="mt-3">
+              <CommentInput
+                placeholder={`回复 ${comment.author}...`}
+                onSubmit={onSubmitReply}
+                onCancel={onCancelReply}
+                replyTo={comment}
+              />
+            </div>
+          )}
         </div>
-        <p className="mt-2 text-sm">{comment.content}</p>
-        {comment.translation && (
-          <div className="mt-2 border-l-2 border-green-500 pl-2 py-1 text-sm text-gray-600 bg-green-50">
-            {comment.translation}
-          </div>
-        )}
       </div>
     </div>
-    {isReplying && (
-      <div className="mt-3 ml-11">
-        <CommentInput
-          placeholder={`回复 ${comment.author}...`}
-          onSubmit={onSubmitReply}
-          onCancel={onCancelReply}
-          replyTo={comment}
-        />
-      </div>
-    )}
-  </div>
-)
+  )
+}
 
 // 主面板组件
 export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize }) => {
@@ -323,6 +345,7 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
             onSubmit={(content, translation) => {
               console.log('New comment:', { content, translation })
             }}
+            onCancel={() => {}}
           />
         )}
       </CardContent>
