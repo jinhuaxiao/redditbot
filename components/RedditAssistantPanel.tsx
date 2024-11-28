@@ -21,46 +21,91 @@ interface RedditAssistantPanelProps {
 }
 
 // 提取内容的辅助函数
-const extractRedditContent = () => {
+const extractRedditContent = async () => {
   try {
-    // 获取帖子信息
-    const titleElement = document.querySelector('[id^="post-title-t3_"]')
-    const contentElement = document.querySelector('[id$="-post-rtjson-content"]')
+    // 等待一小段时间确保 DOM 已更新
+    const waitForElement = (selector: string, maxAttempts = 10, interval = 200) => {
+      return new Promise<Element | null>((resolve) => {
+        let attempts = 0;
+        
+        const check = () => {
+          attempts++;
+          const element = document.querySelector(selector);
+          
+          if (element) {
+            resolve(element);
+          } else if (attempts < maxAttempts) {
+            setTimeout(check, interval);
+          } else {
+            resolve(null);
+          }
+        };
+        
+        check();
+      });
+    };
+
+    // 等待必要的元素加载
+    const [titleElement, contentElement] = await Promise.all([
+      waitForElement('[id^="post-title-t3_"], h1[slot="title"], .Post h1'),
+      waitForElement('[id$="-post-rtjson-content"], [data-testid="post-content"], .Post .RichTextJSON-root')
+    ]);
+    
+    // 等待评论加载
+    await waitForElement('shreddit-comment, .Comment, [data-testid="comment"]');
     
     // 提取评论
-    const commentElements = document.querySelectorAll('shreddit-comment')
+    const commentElements = document.querySelectorAll(
+      'shreddit-comment, .Comment, [data-testid="comment"]'
+    );
+
     const comments: CommentType[] = Array.from(commentElements).map((comment) => {
-      const authorElement = comment.querySelector('.text-neutral-content-strong')
-      const contentElement = comment.querySelector('.md.text-14')
-      const avatarElement = comment.querySelector('image[href], img[src]')
-      const timestampElement = comment.querySelector('time')
+      const authorElement = comment.querySelector(
+        '.text-neutral-content-strong, .author, [data-testid="comment-author"]'
+      );
+      const contentElement = comment.querySelector(
+        '.md.text-14, .RichTextJSON-root, [data-testid="comment-content"]'
+      );
+      const avatarElement = comment.querySelector('image[href], img[src]');
+      const timestampElement = comment.querySelector('time, [data-testid="timestamp"]');
 
       const avatarSrc = avatarElement ? 
         'href' in avatarElement ? (avatarElement as SVGImageElement).href.baseVal : 
         (avatarElement as HTMLImageElement).src
-      : ''
+      : '';
+
+      // 添加错误检查
+      if (!authorElement?.textContent || !contentElement?.textContent) {
+        console.warn('Missing required comment data:', { authorElement, contentElement });
+        return null;
+      }
 
       return {
         id: comment.getAttribute('thingid') || Math.random().toString(),
-        author: authorElement?.textContent?.trim() || 'Anonymous',
-        content: contentElement?.textContent?.trim() || '',
+        author: authorElement.textContent.trim(),
+        content: contentElement.textContent.trim(),
         avatar: avatarSrc,
         timestamp: timestampElement?.getAttribute('datetime') || new Date().toISOString(),
-        translation: '' // 预留翻译位置
-      }
-    })
+        translation: ''
+      };
+    }).filter(Boolean); // 过滤掉无效的评论
+
+    if (!titleElement) {
+      console.warn('Failed to find title element');
+      return null;
+    }
 
     return {
-      title: titleElement?.textContent?.trim() || 'Untitled',
+      title: titleElement.textContent?.trim() || 'Untitled',
       content: contentElement?.textContent?.trim() || '',
-      translation: '', // 预留翻译位置
+      translation: '',
       comments
-    }
+    };
   } catch (error) {
-    console.error('Error extracting Reddit content:', error)
-    return null
+    console.error('Error extracting Reddit content:', error);
+    return null;
   }
-}
+};
 
 export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize }) => {
   const [isPinned, setIsPinned] = useState(true)
@@ -72,11 +117,109 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
   const commentsPerPage = 10
   const [isLoading, setIsLoading] = useState(false)
   const [comments, setComments] = useState<CommentType[]>([])
-  
+  const [currentUrl, setCurrentUrl] = useState(window.location.href)
+  const urlChangeTimeoutRef = useRef<NodeJS.Timeout>()
+
   const { ref, inView } = useInView({
     threshold: 0.5,
-    delay: 100 // 添加延迟避免过快触发
+    delay: 100
   })
+
+  // 提取内容并重置状态的函数
+  const refreshContent = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const content = await extractRedditContent()
+      if (content) {
+        setCurrentPost(content)
+        setVisibleComments(content.comments.slice(0, commentsPerPage))
+        setPage(1)
+        setReplyingTo(null)
+      }
+    } catch (error) {
+      console.error('Failed to refresh content:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [commentsPerPage])
+
+  // 监听 URL 变化
+  useEffect(() => {
+    const handleUrlChange = async () => {
+      const newUrl = window.location.href
+      if (newUrl !== currentUrl) {
+        // 清除之前的定时器
+        if (urlChangeTimeoutRef.current) {
+          clearTimeout(urlChangeTimeoutRef.current)
+        }
+
+        // 设置新的定时器
+        urlChangeTimeoutRef.current = setTimeout(async () => {
+          setCurrentUrl(newUrl)
+          await refreshContent()
+        }, 500) // 给 Reddit 的 DOM 更新一些时间
+      }
+    }
+
+    // 使用 MutationObserver 监听 DOM 变化
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          handleUrlChange()
+        }
+      }
+    })
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['href']
+    })
+
+    // 监听 popstate 事件（浏览器前进/后退）
+    window.addEventListener('popstate', handleUrlChange)
+
+    // 初始加载内容
+    refreshContent()
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('popstate', handleUrlChange)
+      if (urlChangeTimeoutRef.current) {
+        clearTimeout(urlChangeTimeoutRef.current)
+      }
+    }
+  }, [currentUrl, refreshContent])
+
+  // pushState 和 replaceState 的拦截
+  useEffect(() => {
+    const originalPushState = window.history.pushState
+    const originalReplaceState = window.history.replaceState
+
+    const handleStateChange = async () => {
+      const newUrl = window.location.href
+      if (newUrl !== currentUrl) {
+        setCurrentUrl(newUrl)
+        await refreshContent()
+      }
+    }
+
+    window.history.pushState = function(...args) {
+      originalPushState.apply(this, args)
+      handleStateChange()
+    }
+
+    window.history.replaceState = function(...args) {
+      originalReplaceState.apply(this, args)
+      handleStateChange()
+    }
+
+    return () => {
+      window.history.pushState = originalPushState
+      window.history.replaceState = originalReplaceState
+    }
+  }, [currentUrl, refreshContent])
 
   // 监听滚动加载更多评论
   useEffect(() => {
@@ -92,15 +235,8 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
     }
   }, [inView, currentPost, page, isLoading, visibleComments.length])
 
-  // 初始化内容
+  // 监听 Escape
   useEffect(() => {
-    const content = extractRedditContent()
-    if (content) {
-      setCurrentPost(content)
-      setVisibleComments(content.comments.slice(0, commentsPerPage))
-    }
-
-    // 监听 Escape
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsExpanded(false)
@@ -128,23 +264,6 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
 
   if (!currentPost) return null
 
-  // 刷新评论的处理函数
-  const handleRefreshComments = async () => {
-    setIsLoading(true)
-    try {
-      const content = extractRedditContent()
-      if (content) {
-        setCurrentPost(content)
-        setVisibleComments(content.comments.slice(0, page * commentsPerPage))
-      }
-    } catch (error) {
-      console.error('Failed to refresh comments:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-
   return (
     <Card className={`fixed ${isPinned ? 'right-6 top-16' : 'right-6 bottom-6'} w-[400px] shadow-lg max-h-[85vh] flex flex-col bg-white`}>
       {/* 头部 */}
@@ -157,7 +276,7 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={handleRefreshComments}
+            onClick={refreshContent}
             disabled={isLoading}
           >
             {isLoading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
