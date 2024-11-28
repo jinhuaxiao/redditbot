@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MessageSquare, ChevronDown, Pin, Send, RefreshCw, Spinner } from 'lucide-react'
+import { MessageSquare, ChevronDown, Pin, Send, RefreshCw, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,6 +18,7 @@ interface Post {
 
 interface RedditAssistantPanelProps {
   onMinimize?: () => void
+  postId?: string
 }
 
 // 提取内容的辅助函数
@@ -88,7 +89,7 @@ const extractRedditContent = async () => {
         timestamp: timestampElement?.getAttribute('datetime') || new Date().toISOString(),
         translation: ''
       };
-    }).filter(Boolean); // 过滤掉无效的评论
+    }).filter(Boolean);
 
     if (!titleElement) {
       console.warn('Failed to find title element');
@@ -107,7 +108,7 @@ const extractRedditContent = async () => {
   }
 };
 
-export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize }) => {
+export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize, postId }) => {
   const [isPinned, setIsPinned] = useState(true)
   const [isExpanded, setIsExpanded] = useState(true)
   const [replyingTo, setReplyingTo] = useState<CommentType | null>(null)
@@ -116,14 +117,23 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
   const [page, setPage] = useState(1)
   const commentsPerPage = 10
   const [isLoading, setIsLoading] = useState(false)
-  const [comments, setComments] = useState<CommentType[]>([])
-  const [currentUrl, setCurrentUrl] = useState(window.location.href)
-  const urlChangeTimeoutRef = useRef<NodeJS.Timeout>()
-
+  const [currentPostId, setCurrentPostId] = useState(postId)
+  
   const { ref, inView } = useInView({
     threshold: 0.5,
     delay: 100
   })
+
+  // 页面变化监听
+  useEffect(() => {
+    if (postId !== currentPostId) {
+      setCurrentPostId(postId)
+      refreshContent()
+      setPage(1)
+      setVisibleComments([])
+      setReplyingTo(null)
+    }
+  }, [postId])
 
   // 提取内容并重置状态的函数
   const refreshContent = useCallback(async () => {
@@ -133,8 +143,6 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
       if (content) {
         setCurrentPost(content)
         setVisibleComments(content.comments.slice(0, commentsPerPage))
-        setPage(1)
-        setReplyingTo(null)
       }
     } catch (error) {
       console.error('Failed to refresh content:', error)
@@ -143,83 +151,10 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
     }
   }, [commentsPerPage])
 
-  // 监听 URL 变化
+  // 初始加载内容
   useEffect(() => {
-    const handleUrlChange = async () => {
-      const newUrl = window.location.href
-      if (newUrl !== currentUrl) {
-        // 清除之前的定时器
-        if (urlChangeTimeoutRef.current) {
-          clearTimeout(urlChangeTimeoutRef.current)
-        }
-
-        // 设置新的定时器
-        urlChangeTimeoutRef.current = setTimeout(async () => {
-          setCurrentUrl(newUrl)
-          await refreshContent()
-        }, 500) // 给 Reddit 的 DOM 更新一些时间
-      }
-    }
-
-    // 使用 MutationObserver 监听 DOM 变化
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'childList') {
-          handleUrlChange()
-        }
-      }
-    })
-
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['href']
-    })
-
-    // 监听 popstate 事件（浏览器前进/后退）
-    window.addEventListener('popstate', handleUrlChange)
-
-    // 初始加载内容
     refreshContent()
-
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('popstate', handleUrlChange)
-      if (urlChangeTimeoutRef.current) {
-        clearTimeout(urlChangeTimeoutRef.current)
-      }
-    }
-  }, [currentUrl, refreshContent])
-
-  // pushState 和 replaceState 的拦截
-  useEffect(() => {
-    const originalPushState = window.history.pushState
-    const originalReplaceState = window.history.replaceState
-
-    const handleStateChange = async () => {
-      const newUrl = window.location.href
-      if (newUrl !== currentUrl) {
-        setCurrentUrl(newUrl)
-        await refreshContent()
-      }
-    }
-
-    window.history.pushState = function(...args) {
-      originalPushState.apply(this, args)
-      handleStateChange()
-    }
-
-    window.history.replaceState = function(...args) {
-      originalReplaceState.apply(this, args)
-      handleStateChange()
-    }
-
-    return () => {
-      window.history.pushState = originalPushState
-      window.history.replaceState = originalReplaceState
-    }
-  }, [currentUrl, refreshContent])
+  }, [refreshContent])
 
   // 监听滚动加载更多评论
   useEffect(() => {
@@ -274,12 +209,12 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
         </div>
         <div className="flex items-center gap-1">
           <Button 
-            variant="ghost" 
-            size="sm" 
+            variant="ghost"
+            size="sm"
             onClick={refreshContent}
             disabled={isLoading}
           >
-            {isLoading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setIsPinned(!isPinned)}>
             <Pin className={`w-4 h-4 ${isPinned ? 'text-blue-500' : ''}`} />
@@ -325,7 +260,7 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
               {currentPost.comments.length > visibleComments.length && (
                 <div ref={ref} className="h-8 flex items-center justify-center">
                   {isLoading ? (
-                    <Spinner className="w-4 h-4 text-gray-400" />
+                    <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                   ) : (
                     <span className="text-sm text-gray-400">加载更多评论</span>
                   )}
