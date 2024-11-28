@@ -3,7 +3,7 @@ import { MessageSquare, ChevronDown, Pin, Send, RefreshCw, Spinner } from 'lucid
 import { Card, CardHeader, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useInView } from 'react-intersection-observer'
 import { Comment, type Comment as CommentType } from './Comment'
@@ -62,7 +62,6 @@ const extractRedditContent = () => {
   }
 }
 
-// 主面板组件
 export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMinimize }) => {
   const [isPinned, setIsPinned] = useState(true)
   const [isExpanded, setIsExpanded] = useState(true)
@@ -71,29 +70,37 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
   const [visibleComments, setVisibleComments] = useState<CommentType[]>([])
   const [page, setPage] = useState(1)
   const commentsPerPage = 10
-  const [isLoading, setIsLoading] = useState(false);
-  const [comments, setComments] = useState<CommentType[]>([]);
+  const [isLoading, setIsLoading] = useState(false)
+  const [comments, setComments] = useState<CommentType[]>([])
   
   const { ref, inView } = useInView({
-    threshold: 0.5
+    threshold: 0.5,
+    delay: 100 // 添加延迟避免过快触发
   })
 
+  // 监听滚动加载更多评论
   useEffect(() => {
-    if (inView && currentPost) {
-      const nextComments = currentPost.comments.slice(0, page * commentsPerPage)
-      setVisibleComments(nextComments)
-      setPage(prev => prev + 1)
+    if (inView && currentPost && !isLoading) {
+      const startIndex = (page - 1) * commentsPerPage
+      const endIndex = page * commentsPerPage
+      const nextComments = currentPost.comments.slice(0, endIndex)
+      
+      if (nextComments.length > visibleComments.length) {
+        setVisibleComments(nextComments)
+        setPage(prev => prev + 1)
+      }
     }
-  }, [inView, currentPost, page])
+  }, [inView, currentPost, page, isLoading, visibleComments.length])
 
   // 初始化内容
   useEffect(() => {
     const content = extractRedditContent()
     if (content) {
       setCurrentPost(content)
+      setVisibleComments(content.comments.slice(0, commentsPerPage))
     }
 
-    // 监听 Escape 键
+    // 监听 Escape
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsExpanded(false)
@@ -121,25 +128,27 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
 
   if (!currentPost) return null
 
-  // 添加提取评论的函数
-  const extractComments = async () => {
-    setIsLoading(true);
+  // 刷新评论的处理函数
+  const handleRefreshComments = async () => {
+    setIsLoading(true)
     try {
-      const content = extractRedditContent();
+      const content = extractRedditContent()
       if (content) {
-        setComments(content.comments);
-        setCurrentPost(content);
+        setCurrentPost(content)
+        setVisibleComments(content.comments.slice(0, page * commentsPerPage))
       }
     } catch (error) {
-      console.error('Failed to extract comments:', error);
+      console.error('Failed to refresh comments:', error)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
+
 
   return (
     <Card className={`fixed ${isPinned ? 'right-6 top-16' : 'right-6 bottom-6'} w-[400px] shadow-lg max-h-[85vh] flex flex-col bg-white`}>
-      <CardHeader className="border-b flex flex-row items-center justify-between p-3">
+      {/* 头部 */}
+      <CardHeader className="border-b flex flex-row items-center justify-between p-3 shrink-0">
         <div className="flex items-center gap-2">
           <h3 className="font-medium text-lg">Reddit Assistant</h3>
           <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">中 / EN</span>
@@ -147,29 +156,30 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
         <div className="flex items-center gap-1">
           <Button 
             variant="ghost" 
-            size="sm"
-            onClick={() => setIsPinned(!isPinned)}
+            size="sm" 
+            onClick={handleRefreshComments}
+            disabled={isLoading}
           >
+            {isLoading ? <Spinner className="w-4 h-4" /> : <RefreshCw className="w-4 h-4" />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setIsPinned(!isPinned)}>
             <Pin className={`w-4 h-4 ${isPinned ? 'text-blue-500' : ''}`} />
           </Button>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setIsExpanded(false)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setIsExpanded(false)}>
             <ChevronDown className="w-4 h-4" />
           </Button>
         </div>
       </CardHeader>
 
-      <CardContent className="p-0 flex-1 flex flex-col overflow-hidden">
-        <ScrollArea className="flex-1">
-          <div className="p-4">
-            {/* 帖子内容 */}
-            <div className="mb-6">
-              <h3 className="font-medium text-lg mb-2">{currentPost.title}</h3>
-              <p className="text-gray-600">{currentPost.content}</p>
-              {currentPost.translation && (
+      {/* 内容区域 */}
+      <CardContent className="p-0 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400">
+          {/* 帖子内容 */}
+          <div className="p-4 space-y-4">
+            <div>
+              <h3 className="font-medium text-lg mb-2">{currentPost?.title}</h3>
+              <p className="text-gray-600">{currentPost?.content}</p>
+              {currentPost?.translation && (
                 <div className="mt-2 border-l-2 border-green-500 pl-2 py-1 text-sm text-gray-600 bg-green-50">
                   {currentPost.translation}
                 </div>
@@ -191,21 +201,32 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
                   onCancelReply={() => setReplyingTo(null)}
                 />
               ))}
-              {/* 加载更多的触发器 */}
-              <div ref={ref} className="h-4" />
+              
+              {/* 加载更多触发器 */}
+              {currentPost.comments.length > visibleComments.length && (
+                <div ref={ref} className="h-8 flex items-center justify-center">
+                  {isLoading ? (
+                    <Spinner className="w-4 h-4 text-gray-400" />
+                  ) : (
+                    <span className="text-sm text-gray-400">加载更多评论</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
-        {/* 主评论输入框 */}
+        {/* 评论输入框 */}
         {!replyingTo && (
-          <CommentInput
-            placeholder="发表评论..."
-            onSubmit={(content, translation) => {
-              console.log('New comment:', { content, translation })
-            }}
-            onCancel={() => {}}
-          />
+          <div className="border-t p-4 bg-white mt-auto">
+            <CommentInput
+              placeholder="发表评论..."
+              onSubmit={(content, translation) => {
+                console.log('New comment:', { content, translation })
+              }}
+              onCancel={() => {}}
+            />
+          </div>
         )}
       </CardContent>
     </Card>

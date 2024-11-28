@@ -14,6 +14,7 @@ export const getShadowRoot = () => {
   return document.querySelector("#reddit-assistant-host")?.shadowRoot
 }
 
+
 export const getStyle = () => {
   const style = document.createElement("style")
   
@@ -43,65 +44,64 @@ export const getStyle = () => {
       flex-direction: column !important;
     }
 
-    .reddit-assistant-button {
-      width: 48px !important;
-      height: 48px !important;
-      border-radius: 24px !important;
-      background: var(--color-neutral-background-weak) !important;
-      box-shadow: var(--shadow-elevation) !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      cursor: pointer !important;
-      transition: transform 0.2s ease-in-out !important;
-      border: 1px solid var(--color-neutral-border-weak) !important;
-    }
-
-    .reddit-assistant-button:hover {
-      transform: scale(1.05) !important;
-      background: var(--color-neutral-background-strong) !important;
-    }
-
-    .reddit-assistant-container svg {
-      stroke-width: 1.5 !important;
-      stroke-linecap: round !important;
-      stroke-linejoin: round !important;
-      fill: none !important;
-      vertical-align: middle !important;
-      color: var(--color-text-primary) !important;
-    }
-
-    /* 自定义滚动条样式 */
+    /* 优化后的滚动条样式 */
     .custom-scrollbar {
       scrollbar-width: thin !important;
+      scrollbar-color: var(--color-neutral-border-strong) transparent !important;
       overflow-y: auto !important;
+      overflow-x: hidden !important;
+      -webkit-overflow-scrolling: touch !important;
     }
 
+    /* Webkit browsers */
     .custom-scrollbar::-webkit-scrollbar {
-      width: 8px !important;
-      height: 8px !important;
+      width: 6px !important;
+      height: 6px !important;
       background-color: transparent !important;
     }
 
     .custom-scrollbar::-webkit-scrollbar-track {
-      background: #f1f1f1 !important;
-      border-radius: 4px !important;
+      background: transparent !important;
+      border-radius: 3px !important;
       margin: 2px !important;
     }
 
     .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #c1c1c1 !important;
-      border-radius: 4px !important;
-      border: 2px solid #f1f1f1 !important;
+      background: var(--color-neutral-border-strong, #c1c1c1) !important;
+      border-radius: 3px !important;
+      border: none !important;
       min-height: 40px !important;
+      transition: background-color 0.2s ease !important;
     }
 
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: #a1a1a1 !important;
+      background: var(--color-neutral-border-stronger, #a1a1a1) !important;
     }
 
-    .custom-scrollbar::-webkit-scrollbar-corner {
-      background: transparent !important;
+    /* 增加滚动容器样式 */
+    .scroll-container {
+      position: relative !important;
+      height: auto !important;
+      max-height: 500px !important; /* 可根据需要调整 */
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* 确保滚动内容有合适的内边距 */
+    .scroll-content {
+      padding: 1rem !important;
+      position: relative !important;
+    }
+
+    /* 优化移动端滚动体验 */
+    @media (max-width: 768px) {
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px !important;
+      }
+      
+      .scroll-container {
+        max-height: calc(100vh - 200px) !important;
+      }
     }
 
     ${cssText}
