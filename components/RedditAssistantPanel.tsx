@@ -258,11 +258,26 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
               
               {/* 加载更多触发器 */}
               {currentPost.comments.length > visibleComments.length && (
-                <div ref={ref} className="h-8 flex items-center justify-center">
+                <div 
+                  ref={ref} 
+                  className="h-8 flex items-center justify-center cursor-pointer hover:bg-gray-100"
+                  onClick={() => {
+                    const nextBatch = currentPost.comments.slice(
+                      visibleComments.length,
+                      visibleComments.length + commentsPerPage
+                    );
+                    setVisibleComments([...visibleComments, ...nextBatch]);
+                  }}
+                >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                   ) : (
-                    <span className="text-sm text-gray-400">加载更多评论</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400">加载更多评论</span>
+                      <span className="text-xs text-gray-400">
+                        ({currentPost.comments.length - visibleComments.length} 条未显示)
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
