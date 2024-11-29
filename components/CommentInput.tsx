@@ -4,6 +4,7 @@ import { Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { Comment } from './Comment'
+import { translateText } from '../lib/translationService'
 
 interface CommentInputProps {
   onSubmit: (content: string, translation: string) => void
@@ -27,8 +28,15 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     if (!text) return
     setIsTranslating(true)
     try {
-      // TODO: 实现翻译 API 调用
-      setTranslation("Translation preview...")
+      const translatedText = await translateText(text, {
+        sourceLanguage: "Chinese",
+        targetLanguage: "English",
+        temperature: 0.3
+      })
+      setTranslation(translatedText)
+    } catch (error) {
+      console.error("Translation error:", error)
+      setTranslation("Translation failed. Please try again.")
     } finally {
       setIsTranslating(false)
     }
