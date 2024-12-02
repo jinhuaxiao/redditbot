@@ -29,9 +29,7 @@ function createLexicalNodes(text: string): LexicalNode {
 }
 
 /**
- * Set text content in Reddit's comment box
- * @param text Text to set in the comment box
- * @returns Promise that resolves when text is set
+ * Set text content in Reddit's comment box and trigger internal updates
  */
 export async function setCommentText(text: string): Promise<void> {
   try {
@@ -57,20 +55,22 @@ export async function setCommentText(text: string): Promise<void> {
     editor.innerHTML = '';
     editor.appendChild(p);
 
-    // Dispatch necessary events
-    const events = ['input', 'change', 'blur'];
+    // Focus the editor
+    editor.focus();
+
+    // Dispatch necessary events to update internal state
+    const events = ['input', 'change', 'blur', 'focus'];
     events.forEach(eventType => {
       editor.dispatchEvent(new Event(eventType, { bubbles: true }));
     });
 
-    // Update the form's internal state
-    const form = composer.closest('faceplate-form');
-    if (form) {
-      const customEvent = new CustomEvent('content-change', {
-        bubbles: true,
-        detail: { content: text, nodes }
-      });
-      form.dispatchEvent(customEvent);
+    // Wait a bit for React state to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Find the comment button and ensure it's enabled
+    const commentButton = composer.querySelector('[type="submit"]') as HTMLButtonElement;
+    if (commentButton) {
+      commentButton.disabled = false;
     }
 
   } catch (error) {
@@ -80,23 +80,23 @@ export async function setCommentText(text: string): Promise<void> {
 }
 
 /**
- * Submit the comment form
- * @returns Promise that resolves when comment is submitted
+ * Submit the comment by clicking the Comment button
  */
 export async function submitComment(): Promise<void> {
   try {
-    // Find the form element
-    const form = document.querySelector('faceplate-form') as HTMLFormElement;
-    if (!form) {
-      throw new Error('Comment form not found');
+    // Find the Comment button
+    const commentButton = document.querySelector('shreddit-composer [type="submit"]') as HTMLButtonElement;
+    if (!commentButton) {
+      throw new Error('Comment button not found');
     }
 
-    // Submit the form
-    const submitEvent = new SubmitEvent('submit', {
-      bubbles: true,
-      cancelable: true
-    });
-    form.dispatchEvent(submitEvent);
+    // Ensure button is enabled
+    if (commentButton.disabled) {
+      throw new Error('Comment button is disabled');
+    }
+
+    // Click the button
+    commentButton.click();
 
   } catch (error) {
     console.error('Failed to submit comment:', error);

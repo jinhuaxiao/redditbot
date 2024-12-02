@@ -35,12 +35,20 @@ export const CommentInput: React.FC<CommentInputProps> = ({
     if (!text) return
     setIsTranslating(true)
     try {
+      // Detect if text is English or Chinese
+      const isEnglish = /^[A-Za-z0-9\s\W]*$/.test(text) // Simple check for English text
+      
       const translatedText = await translateText(text, {
-        sourceLanguage: "Chinese",
-        targetLanguage: "English",
+        sourceLanguage: isEnglish ? "English" : "Chinese",
+        targetLanguage: isEnglish ? "Chinese" : "English",
         temperature: 0.3
       })
       setTranslation(translatedText)
+      
+      // If original text is English, we'll use the Chinese translation for display
+      if (isEnglish) {
+        await setCommentText(text) // Set English text in Reddit's box
+      }
     } catch (error) {
       console.error("Translation error:", error)
       setTranslation("Translation failed. Please try again.")
@@ -65,9 +73,14 @@ export const CommentInput: React.FC<CommentInputProps> = ({
         replyToUser: replyTo?.author
       })
       
+      // Set the content in our component
       setContent(reply)
-      // Trigger translation of the generated reply
-      handleTranslate(reply)
+      
+      // Since smart replies are in English, translate to Chinese
+      await handleTranslate(reply)
+      
+      // Set the English content in Reddit's comment box
+      await setCommentText(reply)
     } catch (error) {
       console.error("Smart reply generation error:", error)
     } finally {
@@ -78,8 +91,13 @@ export const CommentInput: React.FC<CommentInputProps> = ({
   const handleSubmit = async () => {
     if (content) {
       try {
-        // Set text in Reddit's comment box
-        await setCommentText(translation || content)
+        const textToSubmit = /^[A-Za-z0-9\s\W]*$/.test(content) ? content : translation
+        
+        // Ensure content is in Reddit's comment box
+        await setCommentText(textToSubmit)
+        
+        // Wait a bit for the content to be properly set
+        await new Promise(resolve => setTimeout(resolve, 300))
         
         // Submit the comment
         await submitComment()
