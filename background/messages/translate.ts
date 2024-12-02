@@ -24,7 +24,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
           content: text
         }
       ],
-      model: "llama3-8b-8192",
+      model: "llama-3.1-8b-instant",
       temperature: temperature || 0.3,
       max_tokens: maxTokens || 1024,
       top_p: 1,
