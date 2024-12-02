@@ -8,11 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useInView } from 'react-intersection-observer'
 import { Comment, type Comment as CommentType } from './Comment'
 import { CommentInput } from './CommentInput'
+import { TranslateButton } from './TranslateButton'
 
 interface Post {
   title: string
   content: string
   translation?: string
+  titleTranslation?: string
   comments: CommentType[]
 }
 
@@ -100,6 +102,7 @@ const extractRedditContent = async () => {
       title: titleElement.textContent?.trim() || 'Untitled',
       content: contentElement?.textContent?.trim() || '',
       translation: '',
+      titleTranslation: '',
       comments
     };
   } catch (error) {
@@ -231,8 +234,42 @@ export const RedditAssistantPanel: React.FC<RedditAssistantPanelProps> = ({ onMi
           {/* 帖子内容 */}
           <div className="p-4 space-y-4">
             <div>
-              <h3 className="font-medium text-lg mb-2">{currentPost?.title}</h3>
-              <p className="text-gray-600">{currentPost?.content}</p>
+              <div className="group flex items-start gap-2 mb-2">
+                <h3 className="font-medium text-lg flex-1">{currentPost?.title}</h3>
+                <TranslateButton
+                  text={currentPost?.title || ''}
+                  onTranslated={(translation) => {
+                    if (currentPost) {
+                      setCurrentPost({
+                        ...currentPost,
+                        titleTranslation: translation
+                      })
+                    }
+                  }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+              {currentPost?.titleTranslation && (
+                <p className="text-gray-600 text-sm mb-4">
+                  {currentPost.titleTranslation}
+                </p>
+              )}
+              
+              <div className="group flex items-start gap-2">
+                <p className="text-gray-600 flex-1">{currentPost?.content}</p>
+                <TranslateButton
+                  text={currentPost?.content || ''}
+                  onTranslated={(translation) => {
+                    if (currentPost) {
+                      setCurrentPost({
+                        ...currentPost,
+                        translation
+                      })
+                    }
+                  }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
               {currentPost?.translation && (
                 <div className="mt-2 border-l-2 border-green-500 pl-2 py-1 text-sm text-gray-600 bg-green-50">
                   {currentPost.translation}

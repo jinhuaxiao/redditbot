@@ -1,8 +1,9 @@
 // Comment.tsx
-import React from 'react'
+import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { CommentInput } from './CommentInput'
+import { TranslateButton } from './TranslateButton'
 
 export interface Comment {
   id: string
@@ -41,23 +42,22 @@ export const Comment: React.FC<CommentProps> = ({
   loading = false
 }) => {
   const borderColor = COLORS[depth % Object.keys(COLORS).length]
+  const [translation, setTranslation] = useState<string>(comment.translation || '')
   
   if (!comment) {
     console.error('Comment is undefined')
     return null
   }
 
+  const handleTranslated = (newTranslation: string) => {
+    setTranslation(newTranslation)
+  }
+
   try {
     if (loading) {
       return (
         <div className="animate-pulse">
-          <div className="flex items-center space-x-4">
-            <div className="w-6 h-6 bg-gray-200 rounded-full"></div>
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            </div>
-          </div>
+          <div className="h-10 bg-gray-200 rounded w-full mb-2"></div>
         </div>
       )
     }
@@ -95,11 +95,18 @@ export const Comment: React.FC<CommentProps> = ({
 
               {/* 评论内容 */}
               <div className="mt-2 pl-8">
-                <p className="text-sm text-gray-700 break-words">{comment.content}</p>
-                {comment.translation && (
-                  <div className={`mt-2 border-l-2 ${borderColor} pl-3 py-1 text-sm text-gray-600 bg-gray-50/50 rounded-r-md`}>
-                    {comment.translation}
-                  </div>
+                <div className="flex items-start gap-1">
+                  <p className="text-sm text-gray-700 break-words">{comment.content}</p>
+                  <TranslateButton
+                    text={comment.content}
+                    onTranslated={handleTranslated}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  />
+                </div>
+                {translation && (
+                  <p className="text-gray-600 mt-1">
+                    {translation}
+                  </p>
                 )}
               </div>
 
